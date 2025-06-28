@@ -23,8 +23,8 @@ alpha_054 = ((-1 * ((LOW - CLOSE) * (OPEN ** 5))) / ((LOW - HIGH) * (CLOSE ** 5)
 alpha_101 = ((CLOSE - OPEN) / ((HIGH - LOW) + 0.001))
 
 # simulate 5000 stocks for 10 years
-# 模拟5000支股票10年
-ASSET_COUNT = 5000
+# 模拟5000支股票10年 qtb
+ASSET_COUNT =  5000
 DATE_COUNT = 250 * 10
 DATE = pd.date_range(datetime(2020, 1, 1), periods=DATE_COUNT).repeat(ASSET_COUNT)
 ASSET = [f'A{i:04d}' for i in range(ASSET_COUNT)] * DATE_COUNT
