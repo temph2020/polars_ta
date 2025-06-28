@@ -468,3 +468,421 @@ def cs_top_bottom(x: Expr, k: int = 10) -> Expr:
     a = x.rank(method='dense')
     b = a.max() - a
     return (b < k).cast(Int8) - (a <= k).cast(Int8)
+
+
+def cs_top_bottom_if(condition: Expr, x: Expr, k: int = 10) -> Expr:
+    """横截面筛选排名。前K标记成-1，后K标记成1。可实现动态票池
+
+    Parameters
+    ----------
+    condition:Expr
+        条件
+    x:Expr
+        因子
+    k:int
+        前K和后K的数量
+
+    Examples
+    --------
+    ```python
+    df = pl.DataFrame({
+        'a': [None, 1, 2, 2, 2, 3, 5, 5, 5, 10],
+        'b': [1, 2, 3, 4, 5, 6, None, 8, 9, 10],
+    }).with_columns(
+        out1=cs_top_bottom_if(True, pl.col('a'), 2),  # 与cs_top_bottom等价
+        out2=cs_top_bottom_if(pl.col('b') > 3, pl.col('a'), 2),
+    )
+    ```
+
+    Notes
+    -----
+    已经产生了新的None，尽量避免之后再进行ts_时序计算
+
+    """
+    return cs_top_bottom(when(condition).then(x).otherwise(None), k)
+
+
+def cs_qcut_if(condition: Expr, x: Expr, q: int = 10) -> Expr:
+    """横截面筛选等频分箱。可实现动态票池
+
+    Parameters
+    ----------
+    condition:Expr
+        条件
+    x:Expr
+        因子
+    q:int
+        按频率分成`q`份
+
+    Examples
+    --------
+    ```python
+    df = pl.DataFrame({
+        'a': [None, 1, 1, 1, 2, 2, 3, 10],
+        'b': [1, 2, 3, 4, 5, 6, None, 8],
+    }).with_columns(
+        out1=cs_qcut_if(True, pl.col('a'), 4),  # 与cs_qcut等价
+        out2=cs_qcut_if(pl.col('b') > 3, pl.col('a'), 4),
+    )
+    ```
+
+    Notes
+    -----
+    已经产生了新的None，尽量避免之后再进行ts_时序计算
+
+    """
+    return cs_qcut(when(condition).then(x).otherwise(None), q)
+
+
+def cs_scale_if(condition: Expr, x: Expr, scale_: float = 1, long_scale: float = 1, short_scale: float = 1) -> Expr:
+    """横截面筛选比例调整。可实现动态票池
+
+    Parameters
+    ----------
+    condition:Expr
+        条件
+    x:Expr
+        因子
+    scale_:float
+        缩放比例
+    long_scale:float
+        多头缩放比例
+    short_scale:float
+        空头缩放比例
+
+    Examples
+    --------
+    ```python
+    df = pl.DataFrame({
+        'a': [None, -15, -7, 0, 20],
+        'b': [1, 2, 3, 4, 5],
+    }).with_columns(
+        out1=cs_scale_if(True, pl.col('a'), 1),  # 与cs_scale等价
+        out2=cs_scale_if(pl.col('b') > 3, pl.col('a'), 1),
+    )
+    ```
+
+    Notes
+    -----
+    已经产生了新的None，尽量避免之后再进行ts_时序计算
+
+    """
+    return cs_scale(when(condition).then(x).otherwise(None), scale_, long_scale, short_scale)
+
+
+def cs_scale_down_if(condition: Expr, x: Expr, constant: int = 0) -> Expr:
+    """横截面筛选缩放至[0,1]区间。可实现动态票池
+
+    Parameters
+    ----------
+    condition:Expr
+        条件
+    x:Expr
+        因子
+    constant:int
+        偏移量
+
+    Examples
+    --------
+    ```python
+    df = pl.DataFrame({
+        'a': [None, 15, 7, 0, 20],
+        'b': [1, 2, 3, 4, 5],
+    }).with_columns(
+        out1=cs_scale_down_if(True, pl.col('a'), 0),  # 与cs_scale_down等价
+        out2=cs_scale_down_if(pl.col('b') > 3, pl.col('a'), 0),
+    )
+    ```
+
+    Notes
+    -----
+    已经产生了新的None，尽量避免之后再进行ts_时序计算
+
+    """
+    return cs_scale_down(when(condition).then(x).otherwise(None), constant)
+
+
+def cs_truncate_if(condition: Expr, x: Expr, max_percent: float = 0.01) -> Expr:
+    """横截面筛选截断。可实现动态票池
+
+    Parameters
+    ----------
+    condition:Expr
+        条件
+    x:Expr
+        因子
+    max_percent:float
+        最大百分比
+
+    Examples
+    --------
+    ```python
+    df = pl.DataFrame({
+        'a': [3, 7, 20, 6],
+        'b': [1, 2, 3, 4],
+    }).with_columns(
+        out1=cs_truncate_if(True, pl.col('a'), 0.5),  # 与cs_truncate等价
+        out2=cs_truncate_if(pl.col('b') > 2, pl.col('a'), 0.5),
+    )
+    ```
+
+    Notes
+    -----
+    已经产生了新的None，尽量避免之后再进行ts_时序计算
+
+    """
+    return cs_truncate(when(condition).then(x).otherwise(None), max_percent)
+
+
+def cs_one_side_if(condition: Expr, x: Expr, is_long: bool = True) -> Expr:
+    """横截面筛选单向调整。可实现动态票池
+
+    Parameters
+    ----------
+    condition:Expr
+        条件
+    x:Expr
+        因子
+    is_long:bool
+        是否为多头方向
+
+    Examples
+    --------
+    ```python
+    df = pl.DataFrame({
+        'a': [None, -15, -7, 0, 20],
+        'b': [1, 2, 3, 4, 5],
+    }).with_columns(
+        out1=cs_one_side_if(True, pl.col('a'), True),  # 与cs_one_side等价
+        out2=cs_one_side_if(pl.col('b') > 3, pl.col('a'), True),
+    )
+    ```
+
+    Notes
+    -----
+    已经产生了新的None，尽量避免之后再进行ts_时序计算
+
+    """
+    return cs_one_side(when(condition).then(x).otherwise(None), is_long)
+
+
+def cs_fill_mean_if(condition: Expr, x: Expr) -> Expr:
+    """横截面筛选填充均值。可实现动态票池
+
+    Parameters
+    ----------
+    condition:Expr
+        条件
+    x:Expr
+        因子
+
+    Examples
+    --------
+    ```python
+    df = pl.DataFrame({
+        'a': [1, 2, None, 4, None],
+        'b': [1, 2, 3, 4, 5],
+    }).with_columns(
+        out1=cs_fill_mean_if(True, pl.col('a')),  # 与cs_fill_mean等价
+        out2=cs_fill_mean_if(pl.col('b') > 3, pl.col('a')),
+    )
+    ```
+
+    Notes
+    -----
+    已经产生了新的None，尽量避免之后再进行ts_时序计算
+
+    """
+    return cs_fill_mean(when(condition).then(x).otherwise(None))
+
+
+def cs_fill_max_if(condition: Expr, x: Expr) -> Expr:
+    """横截面筛选填充最大值。可实现动态票池
+
+    Parameters
+    ----------
+    condition:Expr
+        条件
+    x:Expr
+        因子
+
+    Examples
+    --------
+    ```python
+    df = pl.DataFrame({
+        'a': [1, 2, None, 4, None],
+        'b': [1, 2, 3, 4, 5],
+    }).with_columns(
+        out1=cs_fill_max_if(True, pl.col('a')),  # 与cs_fill_max等价
+        out2=cs_fill_max_if(pl.col('b') > 3, pl.col('a')),
+    )
+    ```
+
+    Notes
+    -----
+    已经产生了新的None，尽量避免之后再进行ts_时序计算
+
+    """
+    return cs_fill_max(when(condition).then(x).otherwise(None))
+
+
+def cs_fill_min_if(condition: Expr, x: Expr) -> Expr:
+    """横截面筛选填充最小值。可实现动态票池
+
+    Parameters
+    ----------
+    condition:Expr
+        条件
+    x:Expr
+        因子
+
+    Examples
+    --------
+    ```python
+    df = pl.DataFrame({
+        'a': [1, 2, None, 4, None],
+        'b': [1, 2, 3, 4, 5],
+    }).with_columns(
+        out1=cs_fill_min_if(True, pl.col('a')),  # 与cs_fill_min等价
+        out2=cs_fill_min_if(pl.col('b') > 3, pl.col('a')),
+    )
+    ```
+
+    Notes
+    -----
+    已经产生了新的None，尽量避免之后再进行ts_时序计算
+
+    """
+    return cs_fill_min(when(condition).then(x).otherwise(None))
+
+
+def cs_fill_null_if(condition: Expr, x: Expr, value: float = 0) -> Expr:
+    """横截面筛选填充指定值。可实现动态票池
+
+    Parameters
+    ----------
+    condition:Expr
+        条件
+    x:Expr
+        因子
+    value:float
+        填充值
+
+    Examples
+    --------
+    ```python
+    df = pl.DataFrame({
+        'a': [1, 2, None, 4, None],
+        'b': [1, 2, 3, 4, 5],
+    }).with_columns(
+        out1=cs_fill_null_if(True, pl.col('a'), 0),  # 与cs_fill_null等价
+        out2=cs_fill_null_if(pl.col('b') > 3, pl.col('a'), 0),
+    )
+    ```
+
+    Notes
+    -----
+    已经产生了新的None，尽量避免之后再进行ts_时序计算
+
+    """
+    return cs_fill_null(when(condition).then(x).otherwise(None), value)
+
+
+def cs_regression_neut_if(condition: Expr, y: Expr, x: Expr) -> Expr:
+    """横截面筛选一元回归残差。可实现动态票池
+
+    Parameters
+    ----------
+    condition:Expr
+        条件
+    y:Expr
+        因变量
+    x:Expr
+        自变量
+
+    Examples
+    --------
+    ```python
+    df = pl.DataFrame({
+        'y': [1, 2, 3, 4, 5],
+        'x': [1, 2, 3, 4, 5],
+        'b': [1, 2, 3, 4, 5],
+    }).with_columns(
+        out1=cs_regression_neut_if(True, pl.col('y'), pl.col('x')),  # 与cs_regression_neut等价
+        out2=cs_regression_neut_if(pl.col('b') > 3, pl.col('y'), pl.col('x')),
+    )
+    ```
+
+    Notes
+    -----
+    已经产生了新的None，尽量避免之后再进行ts_时序计算
+
+    """
+    return cs_regression_neut(when(condition).then(y).otherwise(None), when(condition).then(x).otherwise(None))
+
+
+def cs_regression_proj_if(condition: Expr, y: Expr, x: Expr) -> Expr:
+    """横截面筛选一元回归预测。可实现动态票池
+
+    Parameters
+    ----------
+    condition:Expr
+        条件
+    y:Expr
+        因变量
+    x:Expr
+        自变量
+
+    Examples
+    --------
+    ```python
+    df = pl.DataFrame({
+        'y': [1, 2, 3, 4, 5],
+        'x': [1, 2, 3, 4, 5],
+        'b': [1, 2, 3, 4, 5],
+    }).with_columns(
+        out1=cs_regression_proj_if(True, pl.col('y'), pl.col('x')),  # 与cs_regression_proj等价
+        out2=cs_regression_proj_if(pl.col('b') > 3, pl.col('y'), pl.col('x')),
+    )
+    ```
+
+    Notes
+    -----
+    已经产生了新的None，尽量避免之后再进行ts_时序计算
+
+    """
+    return cs_regression_proj(when(condition).then(y).otherwise(None), when(condition).then(x).otherwise(None))
+
+
+def cs_fill_except_all_null_if(condition: Expr, x: Expr, value: float = 0) -> Expr:
+    """横截面筛选填充。全为`null`时，保持`null`，反之`null`填充为`value`。可实现动态票池
+
+    Parameters
+    ----------
+    condition:Expr
+        条件
+    x:Expr
+        因子
+    value:float
+        填充值
+
+    Examples
+    --------
+    ```python
+    df = pl.DataFrame({
+        'a': [1, 2, None, 4, None],
+        'b': [None, None, None, None, None],
+        'c': [1, 2, 3, 4, 5],
+    }).with_columns(
+        out1=cs_fill_except_all_null_if(True, pl.col('a')),  # 与cs_fill_except_all_null等价
+        out2=cs_fill_except_all_null_if(pl.col('c') > 3, pl.col('a')),
+    )
+    ```
+
+    Notes
+    -----
+    已经产生了新的None，尽量避免之后再进行ts_时序计算
+    在权重矩阵中使用时。一定要保证所有股票都在，停牌不能被过滤了
+
+    """
+    return cs_fill_except_all_null(when(condition).then(x).otherwise(None), value)
