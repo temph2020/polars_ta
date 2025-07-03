@@ -288,6 +288,23 @@ def cs_rank(x: Expr, pct: bool = True) -> Expr:
     else:
         return x.rank(method='dense')
 
+# qtb, 这个cs_rank_new改成cs_rank替换原来的，可能更简洁。其他截面算符类似处理
+def cs_rank_new(x: Expr, pct: bool = True, condition: Expr = None):
+    if condition is None:
+        if pct:
+            r = x.rank(method='dense') - 1
+            return r / max_horizontal(r.max(), 1)
+        else:
+            return x.rank(method='dense')
+    else:
+        if pct:
+            r = when(condition).then(x).otherwise(None).rank(method='dense') - 1
+            return r / max_horizontal(r.max(), 1)
+        else:
+            return when(condition).then(x).otherwise(None).rank(method='dense')
+            
+
+
 
 def cs_rank_if(condition: Expr, x: Expr, pct: bool = True) -> Expr:
     """横截面筛选排名。可实现动态票池
